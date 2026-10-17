@@ -136,4 +136,114 @@ export function parseAirQualityCategory(aqi: number): {
     return {
       category: 'Sedang',
       color: '#eab308',
-      advice: '
+      advice: 'Kualitas udara dapat diterima. Kelompok sangat sensitif mungkin perlu membatasi aktivitas berat.',
+    }
+  }
+  if (aqi <= 150) {
+    return {
+      category: 'Tidak Sehat (Sensitif)',
+      color: '#f97316',
+      advice: 'Kelompok rentan (anak-anak, lansia, penderita asma) disarankan memakai masker.',
+    }
+  }
+  if (aqi <= 200) {
+    return {
+      category: 'Tidak Sehat',
+      color: '#ef4444',
+      advice: 'Masyarakat umum mulai merasakan dampak kesehatan. Hindari olahraga luar ruangan yang berat.',
+    }
+  }
+  if (aqi <= 300) {
+    return {
+      category: 'Sangat Tidak Sehat',
+      color: '#a855f7',
+      advice: 'Peringatan kesehatan darurat. Kurangi aktivitas di luar dan nyalakan penjernih udara.',
+    }
+  }
+  return {
+    category: 'Berbahaya',
+    color: '#7f1d1d',
+    advice: 'Tingkat bahaya tinggi! Tetap berada di dalam ruangan dan tutup ventilasi udara luar.',
+  }
+}
+
+// -------------------------------------------------------------
+// Helper Notifikasi Dinamis dari Data Cuaca Nyata
+// -------------------------------------------------------------
+export function generateWeatherAlerts(
+  weather: WeatherData,
+  settings?: AppSettings,
+): WeatherAlertItem[] {
+  const alerts: WeatherAlertItem[] = []
+  const { place, current, hourly } = weather
+  const localDate = current.time.slice(0, 10) // YYYY-MM-DD
+  const placeSlug = place.name.toLowerCase().replace(/[^a-z0-9]/g, '-')
+
+  const tempUnit = settings?.tempUnit || 'celsius'
+  const windUnit = settings?.windUnit || 'kmh'
+  const displayTemp = convertTemp(current.temp, tempUnit)
+  const displayApparent = convertTemp(current.apparentTemp, tempUnit)
+  const tempUnitSymbol = tempUnit === 'fahrenheit' ? '°F' : '°C'
+  const displayWind = convertWind(current.windSpeed, windUnit)
+  const windUnitSymbol = windUnit === 'mph' ? 'mph' : 'km/j'
+
+  // Current local time
+  const timeStr = current.time.slice(11, 16).replace(':', '.')
+
+  // 1. Cek potensi hujan dalam beberapa jam ke depan
+  const nextRainSlot = hourly.slice(0, 6).find(
+    (slot) => slot.precipProb >= 40 || (slot.weatherCode >= 51 && slot.weatherCode <= 82),
+  )
+
+  if (nextRainSlot) {
+    const rainTiming = nextRainSlot.isNow
+      ? 'saat ini'
+      : `sekitar pukul ${nextRainSlot.timeFormatted}`
+
+    alerts.push({
+      id: `rain-${placeSlug}-${localDate}`,
+      title: 'Peluang Hujan Terdeteksi 🌧️',
+      message: `Potensi hujan ${rainTiming} (${nextRainSlot.precipProb}% kemungkinan). Bawa payung jika berencana keluar rumah ya!`,
+      type: 'warning',
+      time: nextRainSlot.isNow ? 'Saat ini' : nextRainSlot.timeFormatted,
+    })
+  }
+
+  // 2. Cek Indeks UV tinggi
+  if (current.uvIndex >= 6) {
+    alerts.push({
+      id: `uv-${placeSlug}-${localDate}`,
+      title: 'Indeks UV Cukup Tinggi ☀️',
+      message: `Indeks UV berada pada level ${current.uvIndex} (${current.uvLabel}). Gunakan tabir surya dan pelindung kepala jika beraktivitas di bawah matahari.`,
+      type: 'warning',
+      time: timeStr,
+    })
+  }
+
+  // 3. Cek Suhu Ekstrem
+  if (current.temp >= 33) {
+    alerts.push({
+      id: `heat-${placeSlug}-${localDate}`,
+      title: 'Suhu Udara Panas Terik 🥤',
+      message: `Suhu mencapai ${displayTemp}${tempUnitSymbol} (terasa seperti ${displayApparent}${tempUnitSymbol}). Perbanyak minum air putih agar tidak dehidrasi.`,
+      type: 'tip',
+      time: timeStr,
+    })
+  } else if (current.temp <= 19) {
+    alerts.push({
+      id: `cold-${placeSlug}-${localDate}`,
+      title: 'Suhu Udara Sejuk / Dingin 🧣',
+      message: `Suhu tercatat ${displayTemp}${tempUnitSymbol}. Siapkan pakaian hangat atau jaket agar tetap nyaman.`,
+      type: 'tip',
+      time: timeStr,
+    })
+  }
+
+  // 4. Cek Angin Kencang
+  if (current.windSpeed >= 20) {
+    alerts.push({
+      id: `wind-${placeSlug}-${localDate}`,
+      title: 'Hembusan Angin Kencang 💨',
+      message: `Kecepatan angin terdeteksi ${displayWind} ${windUnitSymbol}. Berhati-hatilah saat berkendara roda dua atau di dekat pohon rindang.`,
+      type: 'warning',
+    
