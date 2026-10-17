@@ -246,4 +246,137 @@ export function generateWeatherAlerts(
       title: 'Hembusan Angin Kencang 💨',
       message: `Kecepatan angin terdeteksi ${displayWind} ${windUnitSymbol}. Berhati-hatilah saat berkendara roda dua atau di dekat pohon rindang.`,
       type: 'warning',
-    
+      time: 'Saat ini',
+    })
+  }
+
+  // 5. Cek Peringatan Dini Cuaca BMKG
+  if (weather.bmkg?.available && weather.bmkg.warnings.length > 0) {
+    weather.bmkg.warnings.slice(0, 2).forEach((w) => {
+      const cleanId = (w.id || placeSlug).replace(/[^a-zA-Z0-9.-]/g, '_')
+      alerts.push({
+        id: `bmkg-${cleanId}-${localDate}`,
+        title: `Peringatan BMKG: ${w.title}`,
+        message: `${w.description} (${w.area})`,
+        type: 'warning',
+        time: w.time || 'Terkini',
+      })
+    })
+  }
+
+  // 6. Pesan kondusif bila tidak ada cuaca ekstrem
+  if (alerts.length === 0) {
+    alerts.push({
+      id: `calm-${placeSlug}-${localDate}`,
+      title: 'Langit Hari Ini Ramah & Tenang 💙',
+      message: `Kondisi cuaca di ${place.name} saat ini ${current.weatherLabel.toLowerCase()} dengan suhu ${displayTemp}${tempUnitSymbol}. Waktu yang baik untuk beraktivitas!`,
+      type: 'info',
+      time: 'Hari ini',
+    })
+  }
+
+  return alerts
+}
+
+// -------------------------------------------------------------
+// Rekomendasi Aktivitas Harian Dinamis
+// -------------------------------------------------------------
+export function getActivitySuggestions(weather: WeatherData): ActivitySuggestion[] {
+  const { current, hourly } = weather
+  const isRain =
+    current.weatherCode >= 51 && current.weatherCode <= 82 ||
+    hourly.slice(0, 4).some((s) => s.precipProb >= 50)
+
+  return [
+    {
+      id: 'umbrella',
+      title: 'Payung / Jas Hujan',
+      status: isRain ? 'Sangat Diperlukan' : 'Tidak Perlu',
+      suitable: !isRain,
+      tip: isRain
+        ? 'Potensi hujan terdeteksi, siapkan payung sebelum bepergian.'
+        : 'Peluang hujan minim, Anda bisa bepergian dengan santai.',
+      iconName: 'umbrella',
+    },
+    {
+      id: 'exercise',
+      title: 'Olahraga Luar Ruangan',
+      status: isRain
+        ? 'Kurang Cocok'
+        : current.uvIndex > 8
+        ? 'Pagi / Sore Saja'
+        : 'Sangat Cocok',
+      suitable: !isRain && current.uvIndex <= 8,
+      tip: isRain
+        ? 'Sebaiknya lakukan olahraga kardio di dalam ruangan.'
+        : current.uvIndex > 8
+        ? 'Hindari jam terik 11.00 - 14.00, pilih pagi atau sore hari.'
+        : 'Kondisi nyaman untuk lari santai atau bersepeda.',
+      iconName: 'heart',
+    },
+    {
+      id: 'laundry',
+      title: 'Jemur Pakaian',
+      status: isRain ? 'Dalam Ruangan' : current.temp > 28 ? 'Cepat Kering' : 'Cukup Baik',
+      suitable: !isRain,
+      tip: isRain
+        ? 'Sebaiknya jemur di area berteduh atau gunakan pengering.'
+        : 'Panas matahari dan angin membantu pakaian cepat kering.',
+      iconName: 'shirt',
+    },
+    {
+      id: 'driving',
+      title: 'Berkendara Roda Dua',
+      status: current.weatherCode >= 95 ? 'Waspada' : isRain ? 'Hati-hati Basah' : 'Aman',
+      suitable: current.weatherCode < 95 && !isRain,
+      tip: isRain
+        ? 'Jalanan licin dan jarak pandang berkurang, kurangi kecepatan.'
+        : 'Jalanan kering dan kondisi berkendara ideal.',
+      iconName: 'bike',
+    },
+  ]
+}
+
+// -------------------------------------------------------------
+// Pesan Dinamis Maskot Hero
+// -------------------------------------------------------------
+export function getHeroMascotMessage(weather: WeatherData): string {
+  const { current } = weather
+
+  if (current.weatherCode >= 95) {
+    return 'Ada petir di langit, tetap aman di dalam ruangan ya! ⚡'
+  }
+  if (current.weatherCode >= 80 || (current.weatherCode >= 51 && current.weatherCode <= 67)) {
+    return 'Langit sedang berbagi gerimis, jangan lupa payungmu! 🌧️'
+  }
+  if (current.uvIndex >= 8) {
+    return 'Sinar mentari cukup terik, gunakan tabir surya yaa! ☀️'
+  }
+  if (current.temp >= 33) {
+    return 'Cuacanya cukup hangat, jangan lupa minum air yaa! 💗'
+  }
+  if (current.isNight) {
+    return 'Malam yang damai, selamat beristirahat nyenyak! 🌙'
+  }
+  if (current.weatherCode <= 2) {
+    return 'Langit hari ini cukup bersahabat 💗'
+  }
+  return 'Cuaca boleh berubah, senyummu tetap ceria! 🌤️'
+}
+
+// -------------------------------------------------------------
+// Pesan Dinamis Encouragement Banner
+// -------------------------------------------------------------
+export function getBannerMessage(weather: WeatherData): string {
+  const { current } = weather
+  if (current.weatherCode >= 51 && current.weatherCode <= 82) {
+    return 'Hujan menyegarkan bumi, jaga kesehatan & jangan kehujanan yaa! 💧'
+  }
+  if (current.temp >= 32) {
+    return 'Jaga hidrasi tubuh, jangan lupa minum air putih yang cukup! 🥤'
+  }
+  if (current.temp <= 20) {
+    return 'Udara sejuk membelai, kenakan pakaian yang hangat yaa! 🧣'
+  }
+  return 'Cuaca boleh berganti, semangatmu tetap luar biasa! 💗'
+}
