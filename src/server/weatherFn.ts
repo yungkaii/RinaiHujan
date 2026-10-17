@@ -309,4 +309,314 @@ export const fetchWeatherServerFn = createServerFn({ method: 'GET' })
       const nowIdx = d.minutely_15.time.findIndex((tStr) => tStr >= c.time)
       const startIdx = nowIdx >= 0 ? nowIdx : 0
       const nextIntervals = d.minutely_15.time.slice(startIdx, startIdx + 8).map((timeStr, k) => {
-        const pId
+        const pIdx = startIdx + k
+        const pMm = Number((d.minutely_15?.precipitation?.[pIdx] ?? 0).toFixed(2))
+        return {
+          time: timeStr,
+          timeFormatted: formatTimeHHMM(timeStr),
+          precipMm: pMm,
+        }
+      })
+
+      const rainInterval = nextIntervals.find((intv) => intv.precipMm > 0.1)
+      const maxIntensity = Math.max(...nextIntervals.map((i) => i.precipMm), 0)
+
+      nowcast = {
+        hasRainSoon: !!rainInterval,
+        rainStartTime: rainInterval ? rainInterval.timeFormatted : undefined,
+        maxIntensityMm: maxIntensity,
+        summaryMessage: rainInterval
+          ? `Hujan diprakirakan mulai sekitar pukul ${rainInterval.timeFormatted} (${maxIntensity} mm)`
+          : 'Tidak ada hujan signifikan dalam 2 jam ke depan.',
+        intervals: nextIntervals,
+      }
+    }
+
+    // Build Air Quality data
+    let airQuality: AirQualityData | undefined = undefined
+    if (airRes.status === 'fulfilled' && airRes.value.ok) {
+      try {
+        const airJson = await airRes.value.json()
+        const aqiVal = Math.round(airJson.current?.us_aqi ?? 0)
+        const pm25Val = Number((airJson.current?.pm2_5 ?? 0).toFixed(1))
+        const pm10Val = Number((airJson.current?.pm10 ?? 0).toFixed(1))
+        const parsed = parseAirQualityCategory(aqiVal)
+        airQuality = {
+          aqi: aqiVal,
+          pm25: pm25Val,
+          pm10: pm10Val,
+          category: parsed.category,
+          color: parsed.color,
+          advice: parsed.advice,
+        }
+      } catch {
+        // Silent fallback
+      }
+    }
+
+    const dateFormatted = `${t.toLocaleDateString('id-ID', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    })} • ${t.toLocaleTimeString('id-ID', {
+      hour: '2-digit',
+      minute: '2-digit',
+    }).replace(':', '.')}`
+
+    const preliminaryWeather: WeatherData = {
+      place,
+      current: {
+        temp: Math.round(c.temperature_2m),
+        apparentTemp: Math.round(c.apparent_temperature),
+        humidity: Math.round(c.relative_humidity_2m),
+        windSpeed: Math.round(c.wind_speed_10m),
+        windDirection: windDir,
+        windDirectionCardinal: getWindCardinal(windDir),
+        surfacePressure: Math.round(c.surface_pressure),
+        precipitationMm: Number((c.precipitation ?? 0).toFixed(1)),
+        dewPoint: dewPt,
+        weatherCode: c.weather_code,
+        weatherLabel: w.label,
+        weatherIcon: w.icon,
+        uvIndex: uv,
+        uvLabel: getUVLabel(uv),
+        visibilityKm: Math.round((d.hourly.visibility[hourIdx] || 0) / 1000),
+        precipProb: Math.round(
+          d.hourly.precipitation_probability[hourIdx] ?? 0,
+        ),
+        isNight,
+        time: c.time,
+        dateFormatted,
+        sunrise: formatTimeHHMM(d.daily.sunrise[0] ?? ''),
+        sunset: formatTimeHHMM(d.daily.sunset[0] ?? ''),
+        tempMin: Math.round(d.daily.temperature_2m_min[0] ?? 0),
+        tempMax: Math.round(d.daily.temperature_2m_max[0] ?? 0),
+      },
+      hourly: hourlySlots,
+      daily: dailySlots,
+      nowcast,
+      airQuality,
+      bmkg:
+        bmkgResult.status === 'fulfilled'
+          ? bmkgResult.value
+          : {
+              available: false,
+              statusText: 'Layanan BMKG tidak dapat dijangkau saat ini.',
+              warnings: [],
+            },
+    }
+
+    preliminaryWeather.activities = getActivitySuggestions(preliminaryWeather)
+    return preliminaryWeather
+  })
+
+// Server Function: Smart search lokasi dengan Open-Meteo Geocoding
+export const searchLocationsServerFn = createServerFn({ method: 'GET' })
+  .validator((query: string) => query)
+  .handler(async ({ data: rawQuery }): Promise<LocationPlace[]> => {
+    // Batasi panjang query maksimal 80 karakter
+    const q = typeof rawQuery === 'string' ? rawQuery.trim().slice(0, 80) : ''
+    if (!q || q.length < 2) return []
+
+    const words = q.replace(/,/g, ' ').trim().split(/\s+/)
+
+    async function fetchGeo(name: string, count: number): Promise<GeocodingResult[]> {
+      try {
+        const geoParams = new URLSearchParams({
+          name,
+          count: String(count),
+          language: 'id',
+          format: 'json',
+        })
+        const url = `https://geocoding-api.open-meteo.com/v1/search?${geoParams.toString()}`
+        const res = await fetch(url, { signal: AbortSignal.timeout(6000) })
+        if (!res.ok) return []
+        const data: GeocodingApiResponse = await res.json()
+        return data.results || []
+      } catch {
+        return []
+      }
+    }
+
+    const full = await fetchGeo(words.join(' '), 20)
+
+    if (words.length > 1) {
+      const extraWords = words.slice(1).map((w) => w.toLowerCase())
+      const initialWordResults = await fetchGeo(words[0], 30)
+      const combined = [...full, ...initialWordResults]
+
+      const uniqueMap = new Map<number, GeocodingResult>()
+      for (const item of combined) {
+        uniqueMap.set(item.id, item)
+      }
+      const unique = Array.from(uniqueMap.values())
+
+      const hits = unique.filter((item) => {
+        const text = `${item.name} ${item.admin3 || ''} ${item.admin2 || ''} ${
+          item.admin1 || ''
+        } ${item.country || ''}`.toLowerCase()
+        return extraWords.every((word) => text.includes(word))
+      })
+
+      if (hits.length > 0) {
+        return hits.map((p) => ({
+          id: p.id,
+          name: p.name,
+          admin1: p.admin1,
+          admin2: p.admin2,
+          admin3: p.admin3,
+          country: p.country,
+          latitude: p.latitude,
+          longitude: p.longitude,
+        }))
+      }
+    }
+
+    return full.map((p) => ({
+      id: p.id,
+      name: p.name,
+      admin1: p.admin1,
+      admin2: p.admin2,
+      admin3: p.admin3,
+      country: p.country,
+      latitude: p.latitude,
+      longitude: p.longitude,
+    }))
+  })
+
+// Server Function: Reverse Geocode via BigDataCloud
+export const reverseGeocodeServerFn = createServerFn({ method: 'GET' })
+  .validator((coords: { latitude: number; longitude: number }) => coords)
+  .handler(async ({ data: { latitude, longitude } }): Promise<LocationPlace> => {
+    if (
+      !Number.isFinite(latitude) ||
+      !Number.isFinite(longitude) ||
+      latitude < -90 ||
+      latitude > 90 ||
+      longitude < -180 ||
+      longitude > 180
+    ) {
+      throw new Error(
+        `Koordinat reverse-geocode tidak valid: lat=${latitude}, lon=${longitude}`,
+      )
+    }
+
+    try {
+      const geoParams = new URLSearchParams({
+        latitude: String(latitude),
+        longitude: String(longitude),
+        localityLanguage: 'id',
+      })
+      const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?${geoParams.toString()}`
+      const res = await fetch(url, { signal: AbortSignal.timeout(5000) })
+      if (!res.ok) throw new Error()
+      const r = await res.json()
+      return {
+        name: r.locality || r.city || 'Lokasi Saya',
+        admin2: r.city || '',
+        admin1: r.principalSubdivision || '',
+        country: r.countryName || 'Indonesia',
+        latitude,
+        longitude,
+      }
+    } catch {
+      return {
+        name: 'Lokasi Saya',
+        admin1: '',
+        latitude,
+        longitude,
+      }
+    }
+  })
+
+// Server Function: RainViewer Radar Tile Frames (untuk time slider & play/pause)
+export const getRadarPathServerFn = createServerFn({ method: 'GET' }).handler(
+  async (): Promise<{
+    host: string
+    path: string
+    frames: Array<{ time: number; path: string }>
+  } | null> => {
+    try {
+      const res = await fetch('https://api.rainviewer.com/public/weather-maps.json', {
+        signal: AbortSignal.timeout(5000),
+      })
+      if (!res.ok) return null
+      const data = await res.json()
+      if (data.radar?.past && data.radar.past.length > 0) {
+        const last = data.radar.past[data.radar.past.length - 1]
+        return {
+          host: data.host,
+          path: last.path,
+          frames: data.radar.past.map((f: { time: number; path: string }) => ({
+            time: f.time,
+            path: f.path,
+          })),
+        }
+      }
+      return null
+    } catch {
+      return null
+    }
+  },
+)
+
+// Server Function: Peringatan Dini Cuaca BMKG
+export const fetchBmkgWarningsServerFn = createServerFn({ method: 'GET' })
+  .validator((d?: { place?: LocationPlace }) => d)
+  .handler(async ({ data }): Promise<BmkgWarning> => {
+    const targetPlace = data?.place ?? { name: 'Indonesia', latitude: -6.2, longitude: 106.8 }
+    return fetchBmkgWeatherWarningsForPlace(targetPlace)
+  })
+
+// Server Function: Batch fetch temperatures for favorite locations
+export const fetchFavoritesWeatherServerFn = createServerFn({ method: 'POST' })
+  .validator((favs: LocationPlace[]) => favs)
+  .handler(
+    async ({
+      data: favs,
+    }): Promise<Array<{ latitude: number; longitude: number; temp: number; weatherCode: number }>> => {
+      // Batasi maksimal 20 item favorit untuk keamanan dan performa server
+      const safeFavs = Array.isArray(favs) ? favs.slice(0, 20) : []
+
+      const results = await Promise.all(
+        safeFavs.map(async (f) => {
+          if (
+            !Number.isFinite(f.latitude) ||
+            !Number.isFinite(f.longitude) ||
+            f.latitude < -90 ||
+            f.latitude > 90 ||
+            f.longitude < -180 ||
+            f.longitude > 180
+          ) {
+            return null
+          }
+
+          try {
+            const params = new URLSearchParams({
+              latitude: String(f.latitude),
+              longitude: String(f.longitude),
+              current: 'temperature_2m,weather_code',
+            })
+            const url = `https://api.open-meteo.com/v1/forecast?${params.toString()}`
+            const res = await fetch(url, { signal: AbortSignal.timeout(5000) })
+            if (!res.ok) return null
+            const d = await res.json()
+            return {
+              latitude: f.latitude,
+              longitude: f.longitude,
+              temp: Math.round(d.current?.temperature_2m ?? 0),
+              weatherCode: d.current?.weather_code ?? 0,
+            }
+          } catch {
+            return null
+          }
+        }),
+      )
+
+      return results.filter(
+        (r): r is { latitude: number; longitude: number; temp: number; weatherCode: number } =>
+          r !== null,
+      )
+    },
+  )
