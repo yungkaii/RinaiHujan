@@ -158,4 +158,155 @@ export const fetchWeatherServerFn = createServerFn({ method: 'GET' })
 
     if (
       !Number.isFinite(latitude) ||
-      !
+      !Number.isFinite(longitude) ||
+      latitude < -90 ||
+      latitude > 90 ||
+      longitude < -180 ||
+      longitude > 180
+    ) {
+      throw new Error(
+        `Koordinat lokasi tidak valid: latitude harus -90 s/d 90, longitude -180 s/d 180. (Diterima: lat=${latitude}, lon=${longitude})`,
+      )
+    }
+
+    // 1. Open-Meteo Forecast + Minutely_15 Nowcast via URLSearchParams
+    const weatherParams = new URLSearchParams({
+      latitude: String(latitude),
+      longitude: String(longitude),
+      timezone: 'auto',
+      forecast_days: '7',
+      current:
+        'temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m,surface_pressure,precipitation,is_day',
+      hourly:
+        'temperature_2m,weather_code,precipitation_probability,precipitation,visibility,uv_index,wind_speed_10m,wind_direction_10m,dew_point_2m',
+      daily:
+        'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,sunrise,sunset',
+      minutely_15: 'precipitation,weather_code',
+    })
+    const weatherUrl = `https://api.open-meteo.com/v1/forecast?${weatherParams.toString()}`
+
+    // 2. Open-Meteo Air Quality API via URLSearchParams
+    const airParams = new URLSearchParams({
+      latitude: String(latitude),
+      longitude: String(longitude),
+      current: 'us_aqi,pm2_5,pm10',
+    })
+    const airQualityUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?${airParams.toString()}`
+
+    // Run parallel server requests (Open-Meteo Forecast + Air Quality + BMKG Nowcast)
+    const [weatherRes, airRes, bmkgResult] = await Promise.allSettled([
+      fetch(weatherUrl, {
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(9000),
+      }),
+      fetch(airQualityUrl, {
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(5000),
+      }),
+      fetchBmkgWeatherWarningsForPlace(place),
+    ])
+
+    if (weatherRes.status !== 'fulfilled' || !weatherRes.value.ok) {
+      throw new Error(
+        `Gagal memuat data cuaca dari Open-Meteo (status: ${
+          weatherRes.status === 'fulfilled' ? weatherRes.value.status : 'timeout'
+        })`,
+      )
+    }
+
+    const d: WeatherApiResponse = await weatherRes.value.json()
+    const c = d.current
+    const w = weatherByCode(c.weather_code)
+    const t = new Date(c.time)
+
+    // Current hour index in hourly data
+    const hourKey = c.time.slice(0, 13) + ':00'
+    let hourIdx = d.hourly.time.indexOf(hourKey)
+    if (hourIdx < 0) hourIdx = 0
+
+    const uv = Math.round(d.hourly.uv_index[hourIdx] ?? 0)
+    const windDir = Math.round(c.wind_direction_10m ?? 0)
+    const dewPt = Math.round(d.hourly.dew_point_2m?.[hourIdx] ?? c.temperature_2m - 2)
+
+    // Check if night
+    const sunriseToday = d.daily.sunrise[0]
+    const sunsetToday = d.daily.sunset[0]
+    let isNight = c.is_day === 0
+    if (c.is_day === undefined && sunriseToday && sunsetToday) {
+      const currentH = t.getHours()
+      const riseH = parseInt(sunriseToday.slice(11, 13), 10)
+      const setH = parseInt(sunsetToday.slice(11, 13), 10)
+      isNight = currentH < riseH || currentH >= setH
+    }
+
+    // Build 24 hourly slots starting from current hour
+    const hourlySlots: HourlySlot[] = []
+    let previousDateStr = ''
+
+    for (let offset = 0; offset < 24; offset++) {
+      const idx = hourIdx + offset
+      if (idx >= d.hourly.time.length) break
+
+      const tm = d.hourly.time[idx]
+      const cond = weatherByCode(d.hourly.weather_code[idx] ?? 0)
+      const slotDate = tm.slice(0, 10)
+      let dayDivider: string | undefined = undefined
+
+      if (offset > 0 && slotDate !== previousDateStr) {
+        const nextDateObj = new Date(tm)
+        dayDivider = nextDateObj.toLocaleDateString('id-ID', {
+          weekday: 'short',
+          day: 'numeric',
+          month: 'short',
+        })
+      }
+      previousDateStr = slotDate
+
+      hourlySlots.push({
+        time: tm,
+        timeFormatted: offset === 0 ? 'Sekarang' : formatTimeHHMM(tm),
+        temp: Math.round(d.hourly.temperature_2m[idx] ?? 0),
+        weatherCode: d.hourly.weather_code[idx] ?? 0,
+        weatherLabel: cond.label,
+        weatherIcon: cond.icon,
+        precipProb: Math.round(d.hourly.precipitation_probability[idx] ?? 0),
+        precipMm: Number((d.hourly.precipitation?.[idx] ?? 0).toFixed(1)),
+        isNow: offset === 0,
+        dayDivider,
+      })
+    }
+
+    // Build 7 daily slots (use location local date from c.time, not server UTC)
+    const todayStr = c.time.slice(0, 10)
+    const dailySlots: DailySlot[] = d.daily.time.map((dt, k) => {
+      const dateObj = new Date(dt + 'T12:00:00')
+      const cond = weatherByCode(d.daily.weather_code[k] ?? 0)
+      return {
+        date: dt,
+        dayName: dateObj.toLocaleDateString('id-ID', { weekday: 'short' }),
+        dateFormatted: dateObj.toLocaleDateString('id-ID', {
+          day: 'numeric',
+          month: 'short',
+        }),
+        tempMin: Math.round(d.daily.temperature_2m_min[k] ?? 0),
+        tempMax: Math.round(d.daily.temperature_2m_max[k] ?? 0),
+        weatherCode: d.daily.weather_code[k] ?? 0,
+        weatherLabel: cond.label,
+        weatherIcon: cond.icon,
+        precipProbMax: Math.round(
+          d.daily.precipitation_probability_max[k] ?? 0,
+        ),
+        precipSumMm: Number((d.daily.precipitation_sum?.[k] ?? 0).toFixed(1)),
+        sunrise: formatTimeHHMM(d.daily.sunrise[k] ?? ''),
+        sunset: formatTimeHHMM(d.daily.sunset[k] ?? ''),
+        isToday: dt === todayStr,
+      }
+    })
+
+    // Build Nowcast data (minutely_15 for next 2 hours = 8 intervals)
+    let nowcast: NowcastData | undefined = undefined
+    if (d.minutely_15?.time && d.minutely_15.time.length > 0) {
+      const nowIdx = d.minutely_15.time.findIndex((tStr) => tStr >= c.time)
+      const startIdx = nowIdx >= 0 ? nowIdx : 0
+      const nextIntervals = d.minutely_15.time.slice(startIdx, startIdx + 8).map((timeStr, k) => {
+        const pId
