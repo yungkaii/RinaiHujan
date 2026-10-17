@@ -1,0 +1,19 @@
+{
+  "name": "SkyCast - Dasbor Cuaca Ramah Indonesia",
+  "short_name": "SkyCast",
+  "description": "Prakiraan cuaca cerdas, radar hujan 15-menit, kualitas udara, peta interaktif, dan rekomendasi aktivitas harian di Indonesia.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0284c7",
+  "theme_color": "#3b82f6",
+  "lang": "id-ID",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
