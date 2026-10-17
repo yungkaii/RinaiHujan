@@ -119,4 +119,53 @@ export interface DailySlot {
   isToday?: boolean
 }
 
-export interface 
+export interface WeatherCondition {
+  label: string
+  icon: 'sunny' | 'partly' | 'cloudy' | 'rainy' | 'storm'
+}
+
+export interface NowcastData {
+  hasRainSoon: boolean
+  rainStartsInMinutes?: number
+  rainStartTime?: string
+  maxIntensityMm: number
+  summaryMessage: string
+  intervals: Array<{
+    time: string
+    timeFormatted: string
+    precipMm: number
+  }>
+}
+
+export interface AirQualityData {
+  aqi: number
+  pm25: number
+  pm10: number
+  category: 'Baik' | 'Sedang' | 'Tidak Sehat (Sensitif)' | 'Tidak Sehat' | 'Sangat Tidak Sehat' | 'Berbahaya'
+  color: string
+  advice: string
+}
+
+export interface ActivitySuggestion {
+  id: string
+  title: string
+  status: string
+  suitable: boolean
+  tip: string
+  iconName: 'umbrella' | 'bike' | 'shirt' | 'heart' | 'car'
+}
+
+export interface BmkgWarning {
+  available: boolean
+  statusText: string
+  warnings: Array<{
+    id: string
+    title: string
+    description: string
+    area: string
+    time: string
+  }>
+}
+
+export interface WeatherData {
+  place: LocationPlace
