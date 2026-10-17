@@ -72,4 +72,51 @@ export interface DailyWeatherRaw {
   sunset: string[]
 }
 
-export interface WeatherApiResponse 
+export interface WeatherApiResponse {
+  latitude: number
+  longitude: number
+  generationtime_ms: number
+  utc_offset_seconds: number
+  timezone: string
+  timezone_abbreviation: string
+  elevation: number
+  current: CurrentWeatherRaw
+  hourly: HourlyWeatherRaw
+  daily: DailyWeatherRaw
+  minutely_15?: {
+    time: string[]
+    precipitation: (number | null)[]
+    weather_code?: (number | null)[]
+  }
+}
+
+export interface HourlySlot {
+  time: string
+  timeFormatted: string
+  temp: number
+  weatherCode: number
+  weatherLabel: string
+  weatherIcon: 'sunny' | 'partly' | 'cloudy' | 'rainy' | 'storm'
+  precipProb: number
+  precipMm?: number
+  isNow?: boolean
+  dayDivider?: string
+}
+
+export interface DailySlot {
+  date: string
+  dayName: string
+  dateFormatted: string
+  tempMin: number
+  tempMax: number
+  weatherCode: number
+  weatherLabel: string
+  weatherIcon: 'sunny' | 'partly' | 'cloudy' | 'rainy' | 'storm'
+  precipProbMax: number
+  precipSumMm?: number
+  sunrise: string
+  sunset: string
+  isToday?: boolean
+}
+
+export interface 
