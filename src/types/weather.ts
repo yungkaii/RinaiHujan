@@ -169,3 +169,70 @@ export interface BmkgWarning {
 
 export interface WeatherData {
   place: LocationPlace
+  current: {
+    temp: number
+    apparentTemp: number
+    humidity: number
+    windSpeed: number
+    windDirection: number
+    windDirectionCardinal: string
+    surfacePressure: number
+    precipitationMm: number
+    dewPoint: number
+    weatherCode: number
+    weatherLabel: string
+    weatherIcon: 'sunny' | 'partly' | 'cloudy' | 'rainy' | 'storm'
+    uvIndex: number
+    uvLabel: string
+    visibilityKm: number
+    precipProb: number
+    isNight: boolean
+    time: string
+    dateFormatted: string
+    sunrise: string
+    sunset: string
+    tempMin: number
+    tempMax: number
+  }
+  hourly: HourlySlot[]
+  daily: DailySlot[]
+  nowcast?: NowcastData
+  airQuality?: AirQualityData
+  activities?: ActivitySuggestion[]
+  bmkg?: BmkgWarning
+}
+
+export interface FavoriteItem extends LocationPlace {
+  currentTemp?: number
+  weatherCode?: number
+}
+
+export interface WeatherAlertItem {
+  id: string
+  title: string
+  message: string
+  type: 'info' | 'warning' | 'tip'
+  time: string
+  isRead?: boolean
+}
+
+export interface AppSettings {
+  tempUnit: 'celsius' | 'fahrenheit'
+  windUnit: 'kmh' | 'mph'
+  theme: 'light' | 'dark' | 'auto'
+  browserNotifications?: boolean
+}
+
+export interface ToastUndoItem {
+  id: string
+  message: string
+  item: FavoriteItem
+  index: number
+}
+
+export interface SearchHistoryItem {
+  id: string
+  query: string
+  place: LocationPlace
+  timestamp: number
+}
