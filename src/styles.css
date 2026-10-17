@@ -52,4 +52,158 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]):not(.light) 
+  :root:not([data-theme="light"]):not(.light) {
+    --bg-page: linear-gradient(160deg, #0b1329 0%, #111d3d 50%, #0d1730 100%);
+    --bg-surface: rgba(22, 36, 71, 0.78);
+    --bg-surface-elevated: #1a2c56;
+    --bg-surface-hover: #223769;
+    --bg-sidebar: rgba(16, 27, 54, 0.85);
+    --bg-modal: #162447;
+    --bg-input: #1a2c56;
+    --border-subtle: rgba(70, 105, 170, 0.45);
+    --border-card: rgba(70, 105, 170, 0.5);
+    --border-focus: #60a5fa;
+    --text-primary: #f8fafc;
+    --text-secondary: #cbd5e1;
+    --text-muted: #94a3b8;
+    --text-accent: #60a5fa;
+    --accent-soft: rgba(37, 99, 235, 0.3);
+    --accent-soft-hover: rgba(37, 99, 235, 0.45);
+    --shadow-card: 0 4px 20px -2px rgba(0, 0, 0, 0.45);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: 'Nunito', sans-serif;
+  background: var(--bg-page);
+  color: var(--text-primary);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* Reusable Theme Utility Classes */
+.bg-theme-page {
+  background: var(--bg-page);
+}
+.bg-theme-surface {
+  background: var(--bg-surface);
+}
+.bg-theme-elevated {
+  background: var(--bg-surface-elevated);
+}
+.bg-theme-hover:hover {
+  background: var(--bg-surface-hover);
+}
+.bg-theme-sidebar {
+  background: var(--bg-sidebar);
+}
+.bg-theme-modal {
+  background: var(--bg-modal);
+}
+.bg-theme-input {
+  background: var(--bg-input);
+}
+.border-theme-subtle {
+  border-color: var(--border-subtle);
+}
+.border-theme-card {
+  border-color: var(--border-card);
+}
+.text-theme-primary {
+  color: var(--text-primary);
+}
+.text-theme-secondary {
+  color: var(--text-secondary);
+}
+.text-theme-muted {
+  color: var(--text-muted);
+}
+.text-theme-accent {
+  color: var(--text-accent);
+}
+.shadow-theme-card {
+  box-shadow: var(--shadow-card);
+}
+
+.font-caveat {
+  font-family: 'Caveat', cursive;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+.animate-float {
+  animation: float 4s ease-in-out infinite;
+}
+
+@keyframes spin-slow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 25s linear infinite;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes scaleUp {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-scale-up {
+  animation: scaleUp 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Custom Leaflet style overrides */
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  font-family: inherit;
+  z-index: 10 !important;
+}
+
+/* Hide scrollbar for clean UI */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
