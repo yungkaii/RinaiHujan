@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 100">
+  <defs>
+    <linearGradient id="cloudGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#e0f2fe"/>
+    </linearGradient>
+  </defs>
+  <!-- Cloud body -->
+  <path
+    d="M26 86h68c13 0 22-9 22-21 0-10-7-18-17-20 0-15-12-27-28-27-10 0-18 5-23 12-4-3-8-4-13-4-12 0-21 9-21 20 0 1 0 2 .2 3C8 51 2 57 2 66c0 11 10 20 24 20Z"
+    fill="url(#cloudGrad)"
+    stroke="#38bdf8"
+    stroke-width="4"
+  />
+  <!-- Rosy cheeks -->
+  <ellipse cx="42" cy="62" rx="7" ry="4.5" fill="#fda4af" opacity="0.9" />
+  <ellipse cx="82" cy="62" rx="7" ry="4.5" fill="#fda4af" opacity="0.9" />
+  <!-- Cheerful eyes -->
+  <circle cx="46" cy="53" r="4.5" fill="#0369a1" />
+  <circle cx="78" cy="53" r="4.5" fill="#0369a1" />
+  <circle cx="47.5" cy="51.5" r="1.4" fill="#ffffff" />
+  <circle cx="79.5" cy="51.5" r="1.4" fill="#ffffff" />
+  <!-- Sweet smile -->
+  <path
+    d="M55 62q7 7 14 0"
+    fill="none"
+    stroke="#0369a1"
+    stroke-width="3.5"
+    stroke-linecap="round"
+  />
+</svg>
