@@ -41,4 +41,35 @@ export interface CurrentWeatherRaw {
   relative_humidity_2m: number
   apparent_temperature: number
   weather_code: number
- 
+  wind_speed_10m: number
+  wind_direction_10m?: number
+  surface_pressure: number
+  precipitation?: number
+  is_day?: number
+}
+
+export interface HourlyWeatherRaw {
+  time: string[]
+  temperature_2m: number[]
+  weather_code: number[]
+  precipitation_probability: (number | null)[]
+  precipitation: (number | null)[]
+  visibility: (number | null)[]
+  uv_index: (number | null)[]
+  wind_speed_10m?: (number | null)[]
+  wind_direction_10m?: (number | null)[]
+  dew_point_2m?: (number | null)[]
+}
+
+export interface DailyWeatherRaw {
+  time: string[]
+  weather_code: number[]
+  temperature_2m_max: number[]
+  temperature_2m_min: number[]
+  precipitation_probability_max: (number | null)[]
+  precipitation_sum?: (number | null)[]
+  sunrise: string[]
+  sunset: string[]
+}
+
+export interface WeatherApiResponse 
